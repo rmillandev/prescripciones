@@ -17,16 +17,34 @@ export class PrescripcionesController {
     return this.prescripcionesService.create(createPrescripcioneDto, req.user.id);
   }
   
-  @Get()
+  @Get("doctor")
   @Roles(Role.Doctor)
-  findAll(@Req() req: Request & { user: any }) {
+  findAllByDoctor(@Req() req: Request & { user: any }) {
     return this.prescripcionesService.findAllByDoctor(req.user.id);
   }
 
-  @Get(':id')
+  @Get("doctor/:id")
   @Roles(Role.Doctor)
-  findOne(@Param('id') id: string, @Req() req: Request & { user: any }) {
-    return this.prescripcionesService.findOne(id, req.user.id);
+  findOneByDoctor(@Param('id') id: string, @Req() req: Request & { user: any }) {
+    return this.prescripcionesService.findOneByDoctor(id, req.user.id);
+  }
+
+  @Get('patient')
+  @Roles(Role.Patient)
+  findAllPatient(@Req() req: Request & { user: any }) {
+    return this.prescripcionesService.findAllByPatient(req.user.id);
+  }
+
+  @Get('patient/:id')
+  @Roles(Role.Patient)
+  findOnePatient(@Param('id') id: string, @Req() req: Request & { user: any }) {
+    return this.prescripcionesService.findOneByPatient(id, req.user.id);
+  }
+
+  @Patch('patient/consume/:id')
+  @Roles(Role.Patient)
+  consumePrescriptionByPatient(@Param('id') id: string, @Req() req: Request & { user: any }) {
+    return this.prescripcionesService.consumePrescriptionByPatient(id, req.user.id);
   }
 
 }

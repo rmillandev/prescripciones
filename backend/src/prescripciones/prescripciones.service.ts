@@ -1,7 +1,8 @@
-import { HttpStatus, Injectable, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import { HttpStatus, Injectable, NotFoundException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { CreatePrescripcioneDto } from './dto/create-prescripcione.dto';
 import { UpdatePrescripcioneDto } from './dto/update-prescripcione.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { PrescriptionStatus } from './dto/create-prescripcione.dto';
 
 @Injectable()
 export class PrescripcionesService {
@@ -87,7 +88,7 @@ export class PrescripcionesService {
     });
   }
 
-  async findOne(id: string, userId: string) {
+  async findOneByDoctor(id: string, userId: string) {
     const doctor = await this.prisma.doctor.findUnique({
       where: {
         userId,
@@ -119,6 +120,107 @@ export class PrescripcionesService {
     if (!prescription) throw new NotFoundException('Prescription not found');
 
     return prescription;
+  }
+
+  async findAllByPatient(userId: string) {
+    const patient = await this.prisma.patient.findUnique({
+      where: {
+        userId,
+      },
+    });
+
+    if (!patient) throw new NotFoundException('Patient not found');
+
+    return this.prisma.prescription.findMany({
+      where: {
+        patientId: patient.id,
+      },
+      include: {
+        author: {
+          include: {
+            user: false,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async findOneByPatient(prescriptionId: string, userId: string) {
+    const patient = await this.prisma.patient.findUnique({
+      where: {
+        userId,
+      },
+    });
+
+    if (!patient) throw new NotFoundException('Patient not found');
+
+    const prescription = await this.prisma.prescription.findFirst({
+      where: {
+        id: prescriptionId,
+        patientId: patient.id,
+      },
+      include: {
+        items: true,
+        author: {
+          include: {
+            user: false,
+          },
+        },
+        patient: {
+          include: {
+            user: false,
+          },
+        },
+      },
+    });
+
+    if (!prescription) throw new NotFoundException('Prescription not found');
+
+    return prescription;
+  }
+
+  async consumePrescriptionByPatient(prescriptionId: string, userId: string) {
+    const patient = await this.prisma.patient.findUnique({
+      where: {
+        userId,
+      },
+    });
+
+    if (!patient) throw new NotFoundException('Patient not found');
+
+    const prescriptionFind = await this.prisma.prescription.findFirst({
+      where: {
+        id: prescriptionId,
+        patientId: patient.id,
+      },
+    });
+
+    if (!prescriptionFind) throw new NotFoundException('Prescription not found');
+
+    if (prescriptionFind.status === PrescriptionStatus.consumed) throw new BadRequestException('Prescription already consumed');
+
+    const prescriptionUpdate = await this.prisma.prescription.update({
+      where: {
+        id: prescriptionId,
+      },
+      data: {
+        status: PrescriptionStatus.consumed,
+        consumedAt: new Date(),
+      },
+    });
+
+    return {
+      message: 'Prescription status updated successfully',
+      status: HttpStatus.OK,
+      data: {
+        prescriptionId: prescriptionUpdate.id,
+        status: prescriptionUpdate.status,
+        consumedAt: prescriptionUpdate.consumedAt
+      },
+    };
   }
 
 }
