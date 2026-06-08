@@ -61,4 +61,64 @@ export class PrescripcionesService {
     }
   }
 
+  async findAllByDoctor(userId: string) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: {
+        userId,
+      },
+    });
+
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    return this.prisma.prescription.findMany({
+      where: {
+        authorId: doctor.id,
+      },
+      include: {
+        patient: {
+          include: {
+            user: false,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async findOne(id: string, userId: string) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: {
+        userId,
+      },
+    });
+
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const prescription = await this.prisma.prescription.findFirst({
+      where: {
+        id,
+        authorId: doctor.id,
+      },
+      include: {
+        items: true,
+        patient: {
+          include: {
+            user: false,
+          },
+        },
+        author: {
+          include: {
+            user: false,
+          },
+        },
+      },
+    });
+
+    if (!prescription) throw new NotFoundException('Prescription not found');
+
+    return prescription;
+  }
+
 }

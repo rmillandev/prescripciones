@@ -17,4 +17,16 @@ export class PrescripcionesController {
     return this.prescripcionesService.create(createPrescripcioneDto, req.user.id);
   }
   
+  @Get()
+  @Roles(Role.Doctor)
+  findAll(@Req() req: Request & { user: any }) {
+    return this.prescripcionesService.findAllByDoctor(req.user.id);
+  }
+
+  @Get(':id')
+  @Roles(Role.Doctor)
+  findOne(@Param('id') id: string, @Req() req: Request & { user: any }) {
+    return this.prescripcionesService.findOne(id, req.user.id);
+  }
+
 }
