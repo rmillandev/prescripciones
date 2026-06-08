@@ -1,26 +1,64 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { CreatePrescripcioneDto } from './dto/create-prescripcione.dto';
 import { UpdatePrescripcioneDto } from './dto/update-prescripcione.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class PrescripcionesService {
-  create(createPrescripcioneDto: CreatePrescripcioneDto) {
-    return 'This action adds a new prescripcione';
+
+  constructor(private prisma: PrismaService) {}
+
+  async create(prescripcionDto: CreatePrescripcioneDto, doctorId: string) {
+    try {
+      const patient = await this.prisma.patient.findUnique({
+        where: {
+          id: prescripcionDto.patientId,
+        },
+      });
+
+      if (!patient) throw new NotFoundException('Patient not found');
+      
+      const doctor = await this.prisma.doctor.findUnique({
+        where: {
+          userId: doctorId
+        }
+      });
+
+      if (!doctor) throw new NotFoundException('Doctor not found');
+
+      const code = `RX-${Date.now()}`;
+
+      const prescription = await this.prisma.prescription.create({
+        data: {
+          code: code,
+          notes: prescripcionDto.notes,
+          status: prescripcionDto.status,
+          patientId: prescripcionDto.patientId,
+          authorId: doctor.id,
+          items: {
+            create: prescripcionDto.items?.map(item => ({
+              name: item.name,
+              dosage: item.dosage,
+              quantity: item.quantity,
+              instructions: item.instructions
+            }))
+          }
+        },
+        include: { 
+          items: true,
+          patient: true,
+          author: true
+        }
+      });
+
+      return {
+        prescription,
+        message: 'Prescription created successfully',
+        status: HttpStatus.CREATED
+      };
+    } catch (err) { 
+      throw new InternalServerErrorException(`Failed to create prescription: ${err}`);
+    }
   }
 
-  findAll() {
-    return `This action returns all prescripciones`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} prescripcione`;
-  }
-
-  update(id: number, updatePrescripcioneDto: UpdatePrescripcioneDto) {
-    return `This action updates a #${id} prescripcione`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} prescripcione`;
-  }
 }

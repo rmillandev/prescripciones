@@ -9,6 +9,10 @@ export class UsersService {
 
   constructor(private prisma: PrismaService) {}
 
+  async findAll() {
+    return this.prisma.user.findMany();
+  }
+
   async create(createUserDto: CreateUserDto) {
     
     const emailExists = await this.prisma.user.findUnique({

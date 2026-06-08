@@ -12,6 +12,13 @@ import { RolesGuard } from 'src/auth/roles.guard';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Get()
+  @UseGuards(RolesGuard)
+  @Roles(Role.Admin)
+  findAll() {
+    return this.usersService.findAll();
+  }
+  
   @Post()
   @UseGuards(RolesGuard)
   @Roles(Role.Admin)

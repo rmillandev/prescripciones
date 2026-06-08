@@ -1,34 +1,20 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
 import { PrescripcionesService } from './prescripciones.service';
 import { CreatePrescripcioneDto } from './dto/create-prescripcione.dto';
-import { UpdatePrescripcioneDto } from './dto/update-prescripcione.dto';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Roles } from 'src/auth/roles.decorator';
+import { Role } from 'src/auth/role.enum';
 
 @Controller('prescripciones')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class PrescripcionesController {
   constructor(private readonly prescripcionesService: PrescripcionesService) {}
 
   @Post()
-  create(@Body() createPrescripcioneDto: CreatePrescripcioneDto) {
-    return this.prescripcionesService.create(createPrescripcioneDto);
+  @Roles(Role.Doctor)
+  async create(@Body() createPrescripcioneDto: CreatePrescripcioneDto, @Req() req: Request & { user: any}) { 
+    return this.prescripcionesService.create(createPrescripcioneDto, req.user.id);
   }
-
-  @Get()
-  findAll() {
-    return this.prescripcionesService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.prescripcionesService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePrescripcioneDto: UpdatePrescripcioneDto) {
-    return this.prescripcionesService.update(+id, updatePrescripcioneDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.prescripcionesService.remove(+id);
-  }
+  
 }

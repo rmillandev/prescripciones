@@ -1,0 +1,43 @@
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { CreatePatientDto } from './dto/create-patient.dto';
+import { UpdatePatientDto } from './dto/update-patient.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
+
+@Injectable()
+export class PatientService {
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(dto: CreatePatientDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: dto.userId,
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const patientExists = await this.prisma.patient.findUnique({
+      where: {
+        userId: dto.userId,
+      },
+    });
+
+    if (patientExists) throw new ConflictException('This user already has a patient profile');
+
+    if (user.role !== 'patient') throw new ConflictException('User role must be patient');
+
+    return this.prisma.patient.create({
+      data: {
+        userId: dto.userId,
+        birthDate: dto.birthDate
+          ? new Date(dto.birthDate)
+          : undefined,
+      },
+      include: {
+        user: true,
+      },
+    });
+  }
+
+}
