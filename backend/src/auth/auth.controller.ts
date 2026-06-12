@@ -34,13 +34,4 @@ export class AuthController {
     return request.user;
   }
 
-  @Get('doctor-only')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.Doctor, Role.Patient)
-  doctorOnly(@Req() request: any) {
-    return {
-      message: 'Ruta protegida para doctor o admin',
-      user: request.user,
-    };
-  }
 }
