@@ -25,6 +25,10 @@ export class CreatePrescripcioneDto {
   readonly patientId!: string;
 
   @IsOptional()
+  @IsString()
+  readonly doctorId?: string;
+
+  @IsOptional()
   @ArrayMinSize(1)
   @IsArray()
   @ValidateNested({ each: true })

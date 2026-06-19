@@ -1,15 +1,17 @@
-import { HttpStatus, Injectable, NotFoundException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { CreatePrescripcioneDto } from './dto/create-prescripcione.dto';
 import { UpdatePrescripcioneDto } from './dto/update-prescripcione.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PrescriptionStatus } from './dto/create-prescripcione.dto';
+import { FilterPrescripcioneDto, OrderDirection } from './dto/filter-prescripcione.dto';
+import { Role } from 'src/auth/role.enum';
 
 @Injectable()
 export class PrescripcionesService {
 
   constructor(private prisma: PrismaService) {}
 
-  async create(prescripcionDto: CreatePrescripcioneDto, doctorId: string) {
+  async create(prescripcionDto: CreatePrescripcioneDto, doctorUserId: string, role: Role) {
     try {
       const patient = await this.prisma.patient.findUnique({
         where: {
@@ -19,11 +21,19 @@ export class PrescripcionesService {
 
       if (!patient) throw new NotFoundException('Patient not found');
       
-      const doctor = await this.prisma.doctor.findUnique({
-        where: {
-          userId: doctorId
-        }
-      });
+      if (role === Role.Admin && !prescripcionDto.doctorId) throw new BadRequestException('doctorId is required');
+
+      const doctor = role === Role.Admin
+        ? await this.prisma.doctor.findUnique({
+            where: {
+              id: prescripcionDto.doctorId,
+            },
+          })
+        : await this.prisma.doctor.findUnique({
+            where: {
+              userId: doctorUserId,
+            },
+          });
 
       if (!doctor) throw new NotFoundException('Doctor not found');
 
@@ -58,11 +68,18 @@ export class PrescripcionesService {
         status: HttpStatus.CREATED
       };
     } catch (err) { 
+      if (err instanceof HttpException) throw err;
+
       throw new InternalServerErrorException(`Failed to create prescription: ${err}`);
     }
   }
 
-  async findAllByDoctor(userId: string) {
+  async findAllByDoctor(userId: string, filters: FilterPrescripcioneDto, role: Role) {
+    if (role === Role.Admin) return this.findAllByAdmin(filters);
+
+    const { page = 1, limit = 10, status, from, to, order = OrderDirection.desc } = filters;
+    const skip = (page - 1) * limit;
+
     const doctor = await this.prisma.doctor.findUnique({
       where: {
         userId,
@@ -71,24 +88,58 @@ export class PrescripcionesService {
 
     if (!doctor) throw new NotFoundException('Doctor not found');
 
-    return this.prisma.prescription.findMany({
-      where: {
-        authorId: doctor.id,
-      },
-      include: {
-        patient: {
-          include: {
-            user: false,
+    const where = {
+      authorId: doctor.id,
+      ...(status && {
+        status,
+      }),
+      ...((from || to) && {
+        createdAt: {
+          ...(from && {
+            gte: new Date(from),
+          }),
+          ...(to && {
+            lte: new Date(to),
+          }),
+        },
+      }),
+    };
+
+    const [prescriptions, total] = await Promise.all([
+      this.prisma.prescription.findMany({
+        where,
+        include: {
+          patient: {
+            include: {
+              user: false,
+            },
           },
         },
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: order,
+        },
+      }),
+      this.prisma.prescription.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: prescriptions,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    };
   }
 
-  async findOneByDoctor(id: string, userId: string) {
+  async findOneByDoctor(id: string, userId: string, role: Role) {
+    if (role === Role.Admin) return this.findOneByAdmin(id);
+
     const doctor = await this.prisma.doctor.findUnique({
       where: {
         userId,
@@ -122,7 +173,37 @@ export class PrescripcionesService {
     return prescription;
   }
 
-  async findAllByPatient(userId: string) {
+  async findOneByAdmin(id: string) {
+    const prescription = await this.prisma.prescription.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        items: true,
+        patient: {
+          include: {
+            user: false,
+          },
+        },
+        author: {
+          include: {
+            user: false,
+          },
+        },
+      },
+    });
+
+    if (!prescription) throw new NotFoundException('Prescription not found');
+
+    return prescription;
+  }
+
+  async findAllByPatient(userId: string, filters: FilterPrescripcioneDto, role: Role) {
+    if (role === Role.Admin) return this.findAllByAdmin(filters);
+
+    const { page = 1, limit = 10, status, from, to, order = OrderDirection.desc } = filters;
+    const skip = (page - 1) * limit;
+
     const patient = await this.prisma.patient.findUnique({
       where: {
         userId,
@@ -131,24 +212,132 @@ export class PrescripcionesService {
 
     if (!patient) throw new NotFoundException('Patient not found');
 
-    return this.prisma.prescription.findMany({
-      where: {
-        patientId: patient.id,
-      },
-      include: {
-        author: {
-          include: {
-            user: false,
+    const where = {
+      patientId: patient.id,
+      ...(status && {
+        status,
+      }),
+      ...((from || to) && {
+        createdAt: {
+          ...(from && {
+            gte: new Date(from),
+          }),
+          ...(to && {
+            lte: new Date(to),
+          }),
+        },
+      }),
+    };
+
+    const [prescriptions, total] = await Promise.all([
+      this.prisma.prescription.findMany({
+        where,
+        include: {
+          author: {
+            include: {
+              user: false,
+            },
           },
         },
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: order,
+        },
+      }),
+      this.prisma.prescription.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: prescriptions,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    };
   }
 
-  async findOneByPatient(prescriptionId: string, userId: string) {
+  async findAllByAdmin(filters: FilterPrescripcioneDto) {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      doctorId,
+      patientId,
+      from,
+      to,
+      order = OrderDirection.desc,
+    } = filters;
+
+    const skip = (page - 1) * limit;
+
+    const where = {
+      ...(status && {
+        status,
+      }),
+      ...(doctorId && {
+        authorId: doctorId,
+      }),
+      ...(patientId && {
+        patientId,
+      }),
+      ...((from || to) && {
+        createdAt: {
+          ...(from && {
+            gte: new Date(from),
+          }),
+          ...(to && {
+            lte: new Date(to),
+          }),
+        },
+      }),
+    };
+
+    const [prescriptions, total] = await Promise.all([
+      this.prisma.prescription.findMany({
+        where,
+        include: {
+          items: true,
+          patient: {
+            include: {
+              user: false,
+            },
+          },
+          author: {
+            include: {
+              user: false,
+            },
+          },
+        },
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: order,
+        },
+      }),
+      this.prisma.prescription.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: prescriptions,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async findOneByPatient(prescriptionId: string, userId: string, role: Role) {
+    if (role === Role.Admin) return this.findOneByAdmin(prescriptionId);
+
     const patient = await this.prisma.patient.findUnique({
       where: {
         userId,
@@ -182,7 +371,9 @@ export class PrescripcionesService {
     return prescription;
   }
 
-  async consumePrescriptionByPatient(prescriptionId: string, userId: string) {
+  async consumePrescriptionByPatient(prescriptionId: string, userId: string, role: Role) {
+    if (role === Role.Admin) return this.consumePrescriptionByAdmin(prescriptionId);
+
     const patient = await this.prisma.patient.findUnique({
       where: {
         userId,
@@ -195,6 +386,38 @@ export class PrescripcionesService {
       where: {
         id: prescriptionId,
         patientId: patient.id,
+      },
+    });
+
+    if (!prescriptionFind) throw new NotFoundException('Prescription not found');
+
+    if (prescriptionFind.status === PrescriptionStatus.consumed) throw new BadRequestException('Prescription already consumed');
+
+    const prescriptionUpdate = await this.prisma.prescription.update({
+      where: {
+        id: prescriptionId,
+      },
+      data: {
+        status: PrescriptionStatus.consumed,
+        consumedAt: new Date(),
+      },
+    });
+
+    return {
+      message: 'Prescription status updated successfully',
+      status: HttpStatus.OK,
+      data: {
+        prescriptionId: prescriptionUpdate.id,
+        status: prescriptionUpdate.status,
+        consumedAt: prescriptionUpdate.consumedAt
+      },
+    };
+  }
+
+  async consumePrescriptionByAdmin(prescriptionId: string) {
+    const prescriptionFind = await this.prisma.prescription.findUnique({
+      where: {
+        id: prescriptionId,
       },
     });
 

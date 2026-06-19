@@ -12,13 +12,29 @@ export class UsersService {
 
   async findAll(filters: FilterUserDto) {
 
-    const { page = 1, limit = 10, role } = filters;
+    const { page = 1, limit = 10, role, query } = filters;
 
     const skip = (page - 1) * limit;
 
     const where = {
       ...(role && {
         role,
+      }),
+      ...(query && {
+        OR: [
+          {
+            name: {
+              contains: query,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            email: {
+              contains: query,
+              mode: 'insensitive' as const,
+            },
+          },
+        ],
       }),
     };
 
