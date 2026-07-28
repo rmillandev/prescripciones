@@ -387,33 +387,3 @@ type LoginCredentials = { email, password }
 | 17 | PATCH | `/prescripciones/patient/consume/:id` | Sí | Patient, Admin |
 | 18 | GET | `/admin/metrics` | Sí | Admin |
 
----
-
-## 9. Estado Actual y Observaciones
-
-### Lo implementado
-- Backend completo con 7 módulos NestJS
-- Schema de Prisma con 5 modelos y 1 migración
-- Autenticación JWT con access + refresh tokens
-- Control de roles con guards
-- CRUD de usuarios, doctores, pacientes y prescripciones
-- Paginación y filtrado en todas las listas
-- Métricas de admin
-- Filtro global de excepciones HTTP
-- Frontend: Login funcional, cliente HTTP, tipos, utilidades
-
-### Lo pendiente (frontend)
-- La página principal (`/`) sigue siendo el placeholder de Next.js
-- No existen componentes reutilizables (carpeta `components/` vacía)
-- No existen hooks custom (carpeta `hooks/` vacía)
-- No hay páginas para: dashboard admin, lista de doctores/pacientes, vista de prescripciones
-- No hay manejo de estado global (context/zustand)
-- No hay protección de rutas en el frontend
-- No hay servicio para registrar usuarios desde el frontend
-- No hay integración del token en requests (el `api.ts` no agrega el header Authorization automáticamente)
-
-### Notas técnicas
-- Los DTOs `update-*` existen pero no se usan (no hay endpoints PATCH/PUT para update)
-- El enum `PrescriptionStatus` está duplicado: definido en Prisma schema Y en `create-prescripcione.dto.ts`
-- El `AuthModule` exporta `JwtModule` y lo re-importan otros módulos para usar los guards
-- La carpeta `src/public/` en frontend contiene solo SVGs del template de Next.js
