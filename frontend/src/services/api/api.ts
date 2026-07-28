@@ -56,6 +56,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const requestBody = isFormData(body) ? body : JSON.stringify(body);
   const requestHeaders = new Headers(headers);
 
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("accessToken");
+    if (token && !requestHeaders.has("Authorization")) {
+      requestHeaders.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
   if (body !== undefined && !isFormData(body) && !requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json");
   }

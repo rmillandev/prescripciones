@@ -12,9 +12,10 @@ const ROLE_HOME: Record<string, string> = {
   patient: "/patient",
 };
 
-export default function LoginPage() {
-  const { login, user, isLoading } = useAuth();
+export default function RegisterPage() {
+  const { register, user, isLoading } = useAuth();
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -32,12 +33,12 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
+      await register(name, email, password);
     } catch (error) {
       setErrorMessage(
         getApiErrorMessage(
           error,
-          "No se pudo iniciar sesion. Intentalo nuevamente.",
+          "No se pudo registrar. Intentalo nuevamente.",
         ),
       );
     } finally {
@@ -50,10 +51,28 @@ export default function LoginPage() {
       <section className="w-full max-w-sm rounded-lg border border-[#1A3A43] bg-[#11252C]/80 p-6 shadow-[0_24px_80px_rgba(0,217,255,0.08)] backdrop-blur">
         <div className="mb-8">
           <p className="text-3xl text-center font-medium text-[#00D9FF]">Prescripciones</p>
-          <h1 className="mt-2 text-2xl font-semibold text-center">Iniciar sesion</h1>
+          <h1 className="mt-2 text-2xl font-semibold text-center">Crear cuenta</h1>
+          <p className="mt-2 text-sm text-center text-[#A7B8BD]">Solo pacientes pueden registrarse</p>
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#FFFFFF]" htmlFor="name">
+              Nombre completo
+            </label>
+            <input
+              autoComplete="name"
+              className="h-11 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-[#FFFFFF] outline-none transition placeholder:text-[#A7B8BD]/70 focus:border-[#00D9FF] focus:ring-2 focus:ring-[#00D9FF]/15"
+              id="name"
+              name="name"
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Tu nombre"
+              required
+              type="text"
+              value={name}
+            />
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#FFFFFF]" htmlFor="email">
               Correo electronico
@@ -76,13 +95,13 @@ export default function LoginPage() {
               Contrasena
             </label>
             <input
-              autoComplete="current-password"
+              autoComplete="new-password"
               className="h-11 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-[#FFFFFF] outline-none transition placeholder:text-[#A7B8BD]/70 focus:border-[#00D9FF] focus:ring-2 focus:ring-[#00D9FF]/15"
               id="password"
               minLength={6}
               name="password"
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Ingresa tu contrasena"
+              placeholder="Minimo 6 caracteres"
               required
               type="password"
               value={password}
@@ -100,14 +119,14 @@ export default function LoginPage() {
             disabled={isSubmitting}
             type="submit"
           >
-            {isSubmitting ? "Ingresando..." : "Ingresar"}
+            {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-[#A7B8BD]">
-          No tenes cuenta?{" "}
-          <Link className="font-medium text-[#00D9FF] hover:underline" href="/register">
-            Registrate
+          Ya tenes cuenta?{" "}
+          <Link className="font-medium text-[#00D9FF] hover:underline" href="/login">
+            Iniciar sesion
           </Link>
         </p>
       </section>

@@ -1,0 +1,419 @@
+# Prescripciones - Documentación del Proyecto
+
+Sistema web para la gestión de prescripciones médicas con arquitectura **client-server**, compuesto por un backend en **NestJS** y un frontend en **Next.js**.
+
+---
+
+## 1. Visión General
+
+La aplicación permite a tres tipos de usuarios (**Admin**, **Doctor**, **Patient**) interactuar con un sistema de prescripciones médicas:
+
+- **Admin**: Gestiona usuarios, doctores, pacientes; ve métricas globales; crea/consume prescripciones en nombre de otros.
+- **Doctor**: Crea prescripciones médicas y consulta las que ha emitido.
+- **Patient**: Consulta sus prescripciones y las marca como consumidas.
+
+---
+
+## 2. Stack Tecnológico
+
+| Capa | Tecnología | Versión |
+|------|-----------|---------|
+| Backend | NestJS | ^11.0.1 |
+| ORM | Prisma | ^6.19.3 |
+| Base de datos | PostgreSQL | — |
+| Autenticación | JWT (`@nestjs/jwt`) | ^11.0.2 |
+| Hashing | bcrypt | ^6.0.0 |
+| Validación | class-validator + class-transformer | ^0.15.1 / ^0.5.1 |
+| Frontend | Next.js (App Router) | 16.2.9 |
+| UI Framework | React | 19.2.4 |
+| Estilos | Tailwind CSS | ^4 |
+| Lenguaje | TypeScript | ^5.7.3 (backend) / ^5 (frontend) |
+
+---
+
+## 3. Estructura del Proyecto
+
+```
+prescripciones/
+├── backend/
+│   ├── prisma/
+│   │   ├── schema.prisma              # Definición de modelos y enums
+│   │   └── migrations/                # Migraciones SQL
+│   ├── src/
+│   │   ├── main.ts                    # Bootstrap de la app NestJS
+│   │   ├── app.module.ts              # Módulo raíz
+│   │   ├── app.controller.ts          # GET / → "Hello World!"
+│   │   ├── app.service.ts
+│   │   ├── common/filters/            # Filtros globales de excepciones
+│   │   ├── prisma/                    # Servicio global de Prisma
+│   │   ├── auth/                      # Autenticación, JWT, roles
+│   │   ├── users/                     # CRUD de usuarios
+│   │   ├── doctor/                    # CRUD de doctores
+│   │   ├── patient/                   # CRUD de pacientes
+│   │   ├── prescripciones/            # CRUD de prescripciones
+│   │   └── admin/                     # Métricas del dashboard admin
+│   └── .env
+├── frontend/
+│   └── src/
+│       ├── app/                       # App Router (Next.js)
+│       │   ├── layout.tsx             # Layout raíz
+│       │   ├── page.tsx               # Página principal (placeholder)
+│       │   ├── login/page.tsx         # Página de login
+│       │   └── globals.css            # Variables CSS del tema dark
+│       ├── services/                  # Capa de servicios HTTP
+│       │   ├── auth.service.ts
+│       │   └── api/
+│       │       ├── api.ts             # Cliente HTTP genérico (fetch)
+│       │       └── endpoints.ts       # Constantes de endpoints
+│       ├── types/                     # Interfaces TypeScript
+│       │   ├── User.ts
+│       │   └── auth/
+│       │       ├── AuthResponse.ts
+│       │       └── LoginCredentials.ts
+│       └── utils/                     # Utilidades
+│           ├── ApiError.ts
+│           └── getApiErrorMessage.ts
+└── .env
+```
+
+---
+
+## 4. Modelo de Datos (Prisma Schema)
+
+### Diagrama de relaciones
+
+```
+User ──1:1──> Doctor ──1:N──> Prescription
+User ──1:1──> Patient ──1:N──> Prescription
+Prescription ──1:N──> PrescriptionItem
+```
+
+### Modelos
+
+#### `User`
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | String (cuid) | PK |
+| email | String | Unique |
+| password | String | Hasheada con bcrypt |
+| name | String | Nombre completo |
+| role | Role enum | `admin`, `doctor`, `patient` |
+| createdAt | DateTime | Default: now() |
+
+#### `Doctor`
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | String (cuid) | PK |
+| userId | String | FK → User (unique) |
+| specialty | String? | Especialidad médica |
+
+#### `Patient`
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | String (cuid) | PK |
+| userId | String | FK → User (unique) |
+| birthDate | DateTime? | Fecha de nacimiento |
+
+#### `Prescription`
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | String (cuid) | PK |
+| code | String | Unique, formato `RX-{timestamp}` |
+| status | PrescriptionStatus | `pending` (default), `consumed` |
+| notes | String? | Notas adicionales |
+| createdAt | DateTime | Default: now() |
+| consumedAt | DateTime? | Fecha de consumo |
+| patientId | String | FK → Patient |
+| authorId | String | FK → Doctor |
+
+#### `PrescriptionItem`
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | String (cuid) | PK |
+| prescriptionId | String | FK → Prescription |
+| name | String | Nombre del medicamento |
+| dosage | String? | Dosis |
+| quantity | Int? | Cantidad |
+| instructions | String? | Instrucciones de uso |
+
+### Enums
+
+```typescript
+enum Role { admin, doctor, patient }
+enum PrescriptionStatus { pending, consumed }
+```
+
+---
+
+## 5. Backend - API REST
+
+### 5.1. Configuración
+
+| Variable | Valor |
+|----------|-------|
+| `PORT` | `3001` |
+| `DATABASE_URL` | `postgresql://postgres:admin123@localhost:5432/prescripciones` |
+| `JWT_SECRET` | Secret para access tokens |
+| `JWT_EXPIRES_IN` | `45m` |
+| `JWT_REFRESH_SECRET` | Secret para refresh tokens |
+| `JWT_REFRESH_EXPIRES_IN` | `5d` |
+
+### 5.2. Middleware Global
+
+- **`ValidationPipe`**: `transform: true`, `whitelist: true` — valida y transforma DTOs automáticamente.
+- **`HttpExceptionFilter`**: Filtro global que normaliza las respuestas de error a formato `{ message, code, details? }`.
+- **`app.enableCors()`**: Habilita CORS para todas las origins.
+
+### 5.3. Autenticación (`/auth`)
+
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| `POST` | `/auth/register` | Público | Registra un nuevo usuario. Retorna tokens JWT. |
+| `POST` | `/auth/login` | Público | Login con email/password. Retorna tokens JWT. |
+| `POST` | `/authRefresh` | Autenticado | Renueva access token usando refresh token (en header Authorization). |
+| `GET` | `/auth/profile` | Autenticado | Retorna el payload del JWT del usuario actual. |
+
+**Flujo JWT:**
+- Se genera un `accessToken` (45 min) y un `refreshToken` (5 días) en cada login/register.
+- El `JwtAuthGuard` verifica el header `Authorization: Bearer <token>` y carga el payload en `request.user`.
+- El `RolesGuard` verifica que el `role` del usuario coincida con los roles requeridos por el endpoint (mediante el decorador `@Roles()`).
+
+**Roles disponibles:**
+```typescript
+enum Role { Admin = 'admin', Doctor = 'doctor', Patient = 'patient' }
+```
+
+### 5.4. Usuarios (`/users`)
+
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| `GET` | `/users` | Admin | Lista usuarios paginados con filtros (role, query). |
+| `POST` | `/users` | Admin | Crea un usuario nuevo. |
+
+**Filtros de paginación (`FilterUserDto`):**
+- `page` (default: 1)
+- `limit` (default: 10)
+- `role` — Filtrar por rol
+- `query` — Buscar por nombre o email (case-insensitive)
+
+**Respuesta paginada estándar:**
+```json
+{
+  "data": [...],
+  "meta": { "total": 50, "page": 1, "limit": 10, "totalPages": 5 }
+}
+```
+
+### 5.5. Doctores (`/doctor`)
+
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| `GET` | `/doctor` | Admin | Lista doctores paginados con filtros. |
+| `POST` | `/doctor` | Admin | Asocia un perfil Doctor a un User existente. |
+
+**Validaciones en create:**
+- El User debe existir.
+- El User no debe tener ya un perfil Doctor.
+- El `role` del User debe ser `doctor`.
+
+**Filtros:**
+- `page`, `limit`, `query` (nombre, email, especialidad), `specialty`
+
+### 5.6. Pacientes (`/patient`)
+
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| `GET` | `/patient` | Admin | Lista pacientes paginados con filtros. |
+| `POST` | `/patient` | Admin | Asocia un perfil Patient a un User existente. |
+
+**Validaciones en create:**
+- El User debe existir.
+- El User no debe tener ya un perfil Patient.
+- El `role` del User debe ser `patient`.
+
+**Filtros:**
+- `page`, `limit`, `query` (nombre, email)
+
+### 5.7. Prescripciones (`/prescripciones`)
+
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| `POST` | `/prescripciones` | Doctor, Admin | Crea una prescripción. |
+| `GET` | `/prescripciones/doctor` | Doctor, Admin | Lista prescripciones del doctor actual. |
+| `GET` | `/prescripciones/doctor/:id` | Doctor, Admin | Detalle de una prescripción del doctor. |
+| `GET` | `/prescripciones/patient` | Patient, Admin | Lista prescripciones del paciente actual. |
+| `GET` | `/prescripciones/patient/:id` | Patient, Admin | Detalle de una prescripción del paciente. |
+| `GET` | `/prescripciones/admin` | Admin | Lista todas las prescripciones (con filtros extras). |
+| `PATCH` | `/prescripciones/patient/consume/:id` | Patient, Admin | Marca una prescripción como consumida. |
+
+**Lógica de creación:**
+- El `patientId` es obligatorio.
+- Si el rol es `Admin`, se requiere `doctorId` explícito. Si es `Doctor`, se usa el perfil del usuario autenticado.
+- Se genera automáticamente un `code` con formato `RX-{timestamp}`.
+- Se crean los `items` asociados en cascada.
+
+**Lógica de consumo:**
+- Verifica que la prescripción pertenezca al paciente (o sea admin).
+- Verifica que no esté ya consumida.
+- Actualiza `status` a `consumed` y registra `consumedAt`.
+
+**Filtros de paginación (`FilterPrescripcioneDto`):**
+- `page`, `limit`
+- `status` — `pending` o `consumed`
+- `from`, `to` — Rango de fechas (`createdAt`)
+- `order` — `asc` o `desc` (default: `desc`)
+- `doctorId`, `patientId` — Solo en vista admin
+
+### 5.8. Admin - Métricas (`/admin`)
+
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| `GET` | `/admin/metrics` | Admin | Retorna métricas del sistema. |
+
+**Filtros:**
+- `from`, `to` — Rango de fechas
+
+**Respuesta:**
+```json
+{
+  "totals": { "doctors": 10, "patients": 50, "prescripciones": 120 },
+  "byStatus": { "pending": 30, "consumed": 90 },
+  "byDay": [{ "date": "2026-05-23", "count": 5 }, ...],
+  "topDoctors": [{ "doctorId": "...", "count": 15 }, ...]
+}
+```
+
+---
+
+## 6. Frontend
+
+### 6.1. Configuración
+
+| Variable | Valor |
+|----------|-------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3001` |
+
+### 6.2. UI Theme
+
+Diseño **Dark Mode** estilo tecnológico/médico:
+
+| Variable CSS | Valor |
+|--------------|-------|
+| `--background-primary` | `#0A0A0A` |
+| `--background-secondary` | `#11252C` |
+| `--primary` | `#1B5060` |
+| `--accent` | `#00D9FF` (cyan) |
+| `--text-primary` | `#FFFFFF` |
+| `--text-secondary` | `#A7B8BD` |
+| `--border-color` | `#1A3A43` |
+
+### 6.3. Páginas
+
+| Ruta | Archivo | Descripción |
+|------|---------|-------------|
+| `/` | `app/page.tsx` | Página principal (placeholder con template de Next.js) |
+| `/login` | `app/login/page.tsx` | Formulario de login funcional |
+
+### 6.4. Cliente HTTP (`services/api/api.ts`)
+
+Cliente genérico basado en `fetch` con:
+
+- **`api.get<T>(path, options?)`**
+- **`api.post<T>(path, body?, options?)`**
+- **`api.put<T>(path, body?, options?)`**
+- **`api.patch<T>(path, body?, options?)`**
+- **`api.delete<T>(path, options?)`**
+
+Características:
+- Construye URLs con query params (`buildUrl`).
+- Detecta `FormData` para manejo correcto de Content-Type.
+- Lanza `ApiError` en respuestas no exitosas (status != 2xx).
+- Maneja respuestas 204 (sin contenido) y parsing de JSON/texto.
+
+### 6.5. Servicios
+
+**`auth.service.ts`:**
+```typescript
+authService.login(credentials) → POST /auth/login → AuthResponse
+```
+
+### 6.6. Tipos
+
+```typescript
+interface User { id, email, name, role, createdAt }
+interface AuthResponse { status, accessToken, refreshToken, user, message }
+type LoginCredentials = { email, password }
+```
+
+### 6.7. Utilidades
+
+**`ApiError`**: Clase de error personalizada con `status` y `data`.
+
+**`getApiErrorMessage(error, fallback)`**: Extrae mensajes de error de `ApiError` o devuelve un fallback.
+
+---
+
+## 7. Flujo de Autenticación (Completo)
+
+```
+1. POST /auth/login → { accessToken, refreshToken, user }
+2. Frontend guarda ambos tokens en localStorage
+3. requests posteriores usan Authorization: Bearer <accessToken>
+4. Cuando accessToken expira → POST /auth/refresh con refreshToken → nuevos tokens
+```
+
+---
+
+## 8. Endpoints - Resumen
+
+| # | Método | Ruta | Auth | Roles |
+|---|--------|------|------|-------|
+| 1 | POST | `/auth/register` | No | — |
+| 2 | POST | `/auth/login` | No | — |
+| 3 | POST | `/auth/refresh` | Sí | — |
+| 4 | GET | `/auth/profile` | Sí | — |
+| 5 | GET | `/users` | Sí | Admin |
+| 6 | POST | `/users` | Sí | Admin |
+| 7 | GET | `/doctor` | Sí | Admin |
+| 8 | POST | `/doctor` | Sí | Admin |
+| 9 | GET | `/patient` | Sí | Admin |
+| 10 | POST | `/patient` | Sí | Admin |
+| 11 | POST | `/prescripciones` | Sí | Doctor, Admin |
+| 12 | GET | `/prescripciones/doctor` | Sí | Doctor, Admin |
+| 13 | GET | `/prescripciones/doctor/:id` | Sí | Doctor, Admin |
+| 14 | GET | `/prescripciones/patient` | Sí | Patient, Admin |
+| 15 | GET | `/prescripciones/patient/:id` | Sí | Patient, Admin |
+| 16 | GET | `/prescripciones/admin` | Sí | Admin |
+| 17 | PATCH | `/prescripciones/patient/consume/:id` | Sí | Patient, Admin |
+| 18 | GET | `/admin/metrics` | Sí | Admin |
+
+---
+
+## 9. Estado Actual y Observaciones
+
+### Lo implementado
+- Backend completo con 7 módulos NestJS
+- Schema de Prisma con 5 modelos y 1 migración
+- Autenticación JWT con access + refresh tokens
+- Control de roles con guards
+- CRUD de usuarios, doctores, pacientes y prescripciones
+- Paginación y filtrado en todas las listas
+- Métricas de admin
+- Filtro global de excepciones HTTP
+- Frontend: Login funcional, cliente HTTP, tipos, utilidades
+
+### Lo pendiente (frontend)
+- La página principal (`/`) sigue siendo el placeholder de Next.js
+- No existen componentes reutilizables (carpeta `components/` vacía)
+- No existen hooks custom (carpeta `hooks/` vacía)
+- No hay páginas para: dashboard admin, lista de doctores/pacientes, vista de prescripciones
+- No hay manejo de estado global (context/zustand)
+- No hay protección de rutas en el frontend
+- No hay servicio para registrar usuarios desde el frontend
+- No hay integración del token en requests (el `api.ts` no agrega el header Authorization automáticamente)
+
+### Notas técnicas
+- Los DTOs `update-*` existen pero no se usan (no hay endpoints PATCH/PUT para update)
+- El enum `PrescriptionStatus` está duplicado: definido en Prisma schema Y en `create-prescripcione.dto.ts`
+- El `AuthModule` exporta `JwtModule` y lo re-importan otros módulos para usar los guards
+- La carpeta `src/public/` en frontend contiene solo SVGs del template de Next.js
