@@ -3,8 +3,20 @@ const AUTH_ENDPOINTS = {
     register: "/auth/register",
 } as const;
 
-const USER_ENDPOINTS = { 
+const USERS_ENDPOINTS = {
     users: "/users",
-}
+} as const;
 
-export { AUTH_ENDPOINTS, USER_ENDPOINTS };
+const DOCTOR_ENDPOINTS = {
+    doctors: "/doctor",
+} as const;
+
+const PATIENT_ENDPOINTS = {
+    patients: "/patient",
+} as const;
+
+const ADMIN_ENDPOINTS = {
+    metrics: "/admin/metrics",
+} as const;
+
+export { AUTH_ENDPOINTS, USERS_ENDPOINTS, DOCTOR_ENDPOINTS, PATIENT_ENDPOINTS, ADMIN_ENDPOINTS };
