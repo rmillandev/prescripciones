@@ -17,6 +17,9 @@ type RequestOptions = Omit<RequestInit, "body"> & {
 };
 
 const apiBaseUrl = API_URL.replace(/\/$/, "");
+const REFRESH_PATH = "/auth/refresh";
+
+let refreshPromise: Promise<boolean> | null = null;
 
 function buildUrl(path: string, params?: QueryParams) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -51,35 +54,108 @@ async function parseResponse(response: Response) {
   return response.text();
 }
 
+function clearSession() {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("user");
+  document.cookie = "session=; path=/; max-age=0";
+}
+
+async function refreshSession(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (!refreshToken) return false;
+
+    try {
+      const response = await fetch(buildUrl(REFRESH_PATH), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+      });
+
+      if (!response.ok) return false;
+
+      const data = await parseResponse(response);
+      if (!data?.accessToken || !data?.refreshToken) return false;
+
+      localStorage.setItem("accessToken", data.accessToken);
+      localStorage.setItem("refreshToken", data.refreshToken);
+      return true;
+    } catch {
+      return false;
+    }
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
+}
+
+function handleSessionExpired(): never {
+  clearSession();
+  if (typeof window !== "undefined") {
+    window.location.href = "/login";
+  }
+  throw new ApiError("Session expired", 401, { message: "Sesión expirada" });
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, params, ...fetchOptions } = options;
   const requestBody = isFormData(body) ? body : JSON.stringify(body);
   const requestHeaders = new Headers(headers);
 
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("accessToken");
-    if (token && !requestHeaders.has("Authorization")) {
-      requestHeaders.set("Authorization", `Bearer ${token}`);
-    }
+  const isRefreshRequest = path === REFRESH_PATH;
+  const hasStoredToken =
+    typeof window !== "undefined" && !!localStorage.getItem("accessToken");
+
+  if (typeof window !== "undefined" && hasStoredToken && !requestHeaders.has("Authorization")) {
+    requestHeaders.set("Authorization", `Bearer ${localStorage.getItem("accessToken")}`);
   }
 
   if (body !== undefined && !isFormData(body) && !requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(buildUrl(path, params), {
-    ...fetchOptions,
-    body: body === undefined ? undefined : requestBody,
-    headers: requestHeaders,
-  });
+  const doFetch = async (authHeaders: Headers) => {
+    const response = await fetch(buildUrl(path, params), {
+      ...fetchOptions,
+      body: body === undefined ? undefined : requestBody,
+      headers: authHeaders,
+    });
+    const data = await parseResponse(response);
+    return { response, data };
+  };
 
-  const data = await parseResponse(response);
+  const firstAttempt = await doFetch(requestHeaders);
 
-  if (!response.ok) {
-    throw new ApiError(response.statusText || "Request failed", response.status, data);
+  if (
+    firstAttempt.response.status === 401 &&
+    !isRefreshRequest &&
+    hasStoredToken
+  ) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      const retryHeaders = new Headers(requestHeaders);
+      retryHeaders.set("Authorization", `Bearer ${localStorage.getItem("accessToken")}`);
+      const retry = await doFetch(retryHeaders);
+      if (retry.response.ok) return retry.data as T;
+    }
+    return handleSessionExpired();
   }
 
-  return data as T;
+  if (!firstAttempt.response.ok) {
+    throw new ApiError(
+      firstAttempt.response.statusText || "Request failed",
+      firstAttempt.response.status,
+      firstAttempt.data
+    );
+  }
+
+  return firstAttempt.data as T;
 }
 
 export const api = {
