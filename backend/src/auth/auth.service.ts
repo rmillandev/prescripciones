@@ -28,9 +28,16 @@ export class AuthService {
       const user = await this.prisma.user.create({
         data: {
           ...createUserDto,
+          role: 'patient',
           password: hashedPassword,
         },
       }); 
+
+      await this.prisma.patient.create({
+        data: {
+          userId: user.id,
+        },
+      });
       
       const { accessToken, refreshToken } = await this.generateTokens(user);
 

@@ -19,6 +19,12 @@ export class PatientController {
     return this.patientService.findAll(filters);
   }
 
+  @Get('options')
+  @Roles(Role.Admin, Role.Doctor)
+  findOptions() {
+    return this.patientService.findOptions();
+  }
+
   @Post()
   @Roles(Role.Admin)
   create(@Body() createPatientDto: CreatePatientDto) {

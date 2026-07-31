@@ -78,6 +78,24 @@ export class PatientService {
     };
   }
 
+  async findOptions() {
+    return this.prisma.patient.findMany({
+      select: {
+        id: true,
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        user: {
+          name: 'asc' as const,
+        },
+      },
+    });
+  }
+
   async create(dto: CreatePatientDto) {
     const user = await this.prisma.user.findUnique({
       where: {

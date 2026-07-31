@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { adminService } from "../../services/admin.service";
 import type { MetricsResponse } from "../../types/Metrics";
+import { StatCard, BarRow } from "../../components/StatCard";
+import { Spinner } from "../../components/Spinner";
 
 export default function AdminDashboard() {
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
@@ -23,13 +25,7 @@ export default function AdminDashboard() {
     load();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#00D9FF] border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return <Spinner size={8} />;
 
   if (error) {
     return <p className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</p>;
@@ -97,30 +93,6 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-[#1A3A43] bg-[#11252C]/60 p-6">
-      <p className="text-sm text-[#A7B8BD]">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-white">{value}</p>
-    </div>
-  );
-}
-
-function BarRow({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const pct = total === 0 ? 0 : Math.round((value / total) * 100);
-  return (
-    <div>
-      <div className="flex justify-between text-sm">
-        <span className="text-[#A7B8BD]">{label}</span>
-        <span className="text-white font-medium">{value} ({pct}%)</span>
-      </div>
-      <div className="mt-1 h-2 w-full rounded-full bg-[#1A3A43]">
-        <div className={`h-2 rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
-      </div>
     </div>
   );
 }

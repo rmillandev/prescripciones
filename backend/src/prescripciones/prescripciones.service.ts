@@ -111,7 +111,11 @@ export class PrescripcionesService {
         include: {
           patient: {
             include: {
-              user: false,
+              user: {
+                select: {
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -157,12 +161,20 @@ export class PrescripcionesService {
         items: true,
         patient: {
           include: {
-            user: false,
+            user: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
         author: {
           include: {
-            user: false,
+            user: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
@@ -182,12 +194,20 @@ export class PrescripcionesService {
         items: true,
         patient: {
           include: {
-            user: false,
+            user: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
         author: {
           include: {
-            user: false,
+            user: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
@@ -235,7 +255,11 @@ export class PrescripcionesService {
         include: {
           author: {
             include: {
-              user: false,
+              user: {
+                select: {
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -355,12 +379,20 @@ export class PrescripcionesService {
         items: true,
         author: {
           include: {
-            user: false,
+            user: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
         patient: {
           include: {
-            user: false,
+            user: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { usersService } from "@/src/services/users.service";
 import type { UserSummary } from "@/src/types/Admin";
+import { Pagination } from "@/src/components/Pagination";
+import { Modal } from "@/src/components/Modal";
+import { RoleBadge } from "@/src/components/Badge";
+import { Spinner } from "@/src/components/Spinner";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -87,9 +91,7 @@ export default function UsersPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-10">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#00D9FF] border-t-transparent" />
-        </div>
+        <Spinner size={6} />
       ) : users.length === 0 ? (
         <p className="text-sm text-[#A7B8BD] py-10 text-center">Sin resultados</p>
       ) : (
@@ -147,33 +149,6 @@ export default function UsersPage() {
   );
 }
 
-function RoleBadge({ role }: { role: string }) {
-  const colors: Record<string, string> = {
-    admin: "bg-purple-500/20 text-purple-300",
-    doctor: "bg-blue-500/20 text-blue-300",
-    patient: "bg-green-500/20 text-green-300",
-  };
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colors[role] ?? "bg-zinc-500/20 text-zinc-300"}`}>
-      {role}
-    </span>
-  );
-}
-
-function Pagination({ page, total, limit, onChange }: { page: number; total: number; limit: number; onChange: (p: number) => void }) {
-  const pages = Math.ceil(total / limit);
-  if (pages <= 1) return null;
-  return (
-    <div className="flex items-center justify-between border-t border-[#1A3A43] px-4 py-3">
-      <p className="text-sm text-[#A7B8BD]">Página {page} de {pages}</p>
-      <div className="flex gap-2">
-        <button disabled={page <= 1} onClick={() => onChange(page - 1)} className="rounded-md border border-[#1A3A43] px-3 py-1 text-sm text-[#A7B8BD] hover:text-white disabled:opacity-40 transition">Anterior</button>
-        <button disabled={page >= pages} onClick={() => onChange(page + 1)} className="rounded-md border border-[#1A3A43] px-3 py-1 text-sm text-[#A7B8BD] hover:text-white disabled:opacity-40 transition">Siguiente</button>
-      </div>
-    </div>
-  );
-}
-
 function UserModal({ mode, user, onClose, onSaved }: { mode: "create" | "edit"; user: UserSummary | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
@@ -203,39 +178,39 @@ function UserModal({ mode, user, onClose, onSaved }: { mode: "create" | "edit"; 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div className="w-full max-w-md rounded-lg border border-[#1A3A43] bg-[#11252C] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-semibold text-white">{mode === "create" ? "Nuevo usuario" : "Editar usuario"}</h2>
-        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label className="text-sm font-medium text-[#A7B8BD]">Nombre</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} required className="mt-1 h-10 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-white outline-none focus:border-[#00D9FF]" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[#A7B8BD]">Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} required type="email" className="mt-1 h-10 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-white outline-none focus:border-[#00D9FF]" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[#A7B8BD]">{mode === "create" ? "Contrasena" : "Contrasena (dejar vacio para mantener)"}</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" minLength={mode === "create" ? 6 : undefined} required={mode === "create"} className="mt-1 h-10 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-white outline-none focus:border-[#00D9FF]" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[#A7B8BD]">Rol</label>
-            <select value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 h-10 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-white outline-none focus:border-[#00D9FF]">
-              <option value="patient">Paciente</option>
-              <option value="doctor">Doctor</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="rounded-md border border-[#1A3A43] px-4 py-2 text-sm text-[#A7B8BD] hover:text-white transition">Cancelar</button>
-            <button type="submit" disabled={saving} className="rounded-md bg-[#00D9FF] px-4 py-2 text-sm font-semibold text-[#061418] hover:bg-cyan-300 disabled:opacity-50 transition">
-              {saving ? "Guardando..." : mode === "create" ? "Crear" : "Guardar"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal
+      title={mode === "create" ? "Nuevo usuario" : "Editar usuario"}
+      onClose={onClose}
+    >
+      <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
+        <div>
+          <label className="text-sm font-medium text-[#A7B8BD]">Nombre</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} required className="mt-1 h-10 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-white outline-none focus:border-[#00D9FF]" />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-[#A7B8BD]">Email</label>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} required type="email" className="mt-1 h-10 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-white outline-none focus:border-[#00D9FF]" />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-[#A7B8BD]">{mode === "create" ? "Contrasena" : "Contrasena (dejar vacio para mantener)"}</label>
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" minLength={mode === "create" ? 6 : undefined} required={mode === "create"} className="mt-1 h-10 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-white outline-none focus:border-[#00D9FF]" />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-[#A7B8BD]">Rol</label>
+          <select value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 h-10 w-full rounded-md border border-[#1A3A43] bg-black/30 px-3 text-sm text-white outline-none focus:border-[#00D9FF]">
+            <option value="patient">Paciente</option>
+            <option value="doctor">Doctor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="rounded-md border border-[#1A3A43] px-4 py-2 text-sm text-[#A7B8BD] hover:text-white transition">Cancelar</button>
+          <button type="submit" disabled={saving} className="rounded-md bg-[#00D9FF] px-4 py-2 text-sm font-semibold text-[#061418] hover:bg-cyan-300 disabled:opacity-50 transition">
+            {saving ? "Guardando..." : mode === "create" ? "Crear" : "Guardar"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

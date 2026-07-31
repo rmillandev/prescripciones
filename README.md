@@ -57,19 +57,21 @@ prescripciones/
 │   └── src/
 │       ├── app/                       # App Router (Next.js)
 │       │   ├── layout.tsx             # Layout raíz
-│       │   ├── page.tsx               # Página principal (placeholder)
-│       │   ├── login/page.tsx         # Página de login
+│       │   ├── page.tsx               # Home inteligente (redirige por rol)
+│       │   ├── login/                 # Página de login
+│       │   ├── register/              # Registro público
+│       │   ├── admin/                 # Layout y páginas del rol Admin
+│       │   ├── doctor/                # Layout y páginas del rol Doctor
+│       │   ├── patient/               # Layout y páginas del rol Patient
 │       │   └── globals.css            # Variables CSS del tema dark
+│       ├── components/                # Componentes reutilizables (SidebarLayout, tabla, modales, etc.)
 │       ├── services/                  # Capa de servicios HTTP
 │       │   ├── auth.service.ts
 │       │   └── api/
 │       │       ├── api.ts             # Cliente HTTP genérico (fetch)
 │       │       └── endpoints.ts       # Constantes de endpoints
 │       ├── types/                     # Interfaces TypeScript
-│       │   ├── User.ts
-│       │   └── auth/
-│       │       ├── AuthResponse.ts
-│       │       └── LoginCredentials.ts
+│       ├── contexts/                  # Contextos (AuthContext)
 │       └── utils/                     # Utilidades
 │           ├── ApiError.ts
 │           └── getApiErrorMessage.ts
@@ -168,10 +170,12 @@ enum PrescriptionStatus { pending, consumed }
 
 | Método | Ruta | Acceso | Descripción |
 |--------|------|--------|-------------|
-| `POST` | `/auth/register` | Público | Registra un nuevo usuario. Retorna tokens JWT. |
+| `POST` | `/auth/register` | Público | Registra un nuevo usuario (siempre con rol `patient`). Retorna tokens JWT. |
 | `POST` | `/auth/login` | Público | Login con email/password. Retorna tokens JWT. |
 | `POST` | `/authRefresh` | Autenticado | Renueva access token usando refresh token (en header Authorization). |
 | `GET` | `/auth/profile` | Autenticado | Retorna el payload del JWT del usuario actual. |
+
+**Nota:** Al registrarse se crea automáticamente el perfil `Patient` del usuario (el registro público solo permite pacientes).
 
 **Flujo JWT:**
 - Se genera un `accessToken` (45 min) y un `refreshToken` (5 días) en cada login/register.
@@ -189,6 +193,10 @@ enum Role { Admin = 'admin', Doctor = 'doctor', Patient = 'patient' }
 |--------|------|--------|-------------|
 | `GET` | `/users` | Admin | Lista usuarios paginados con filtros (role, query). |
 | `POST` | `/users` | Admin | Crea un usuario nuevo. |
+| `PATCH` | `/users/:id` | Admin | Actualiza nombre/email/password/rol de un usuario. |
+| `DELETE` | `/users/:id` | Admin | Elimina un usuario (y sus datos asociados en cascada). |
+
+**Perfiles automáticos:** Al crear un usuario con rol `doctor` o `patient` (y al cambiar el rol de un usuario existente), se crea automáticamente el perfil `Doctor` o `Patient` asociado. Ya no es obligatorio crearlo manualmente desde `/doctor` o `/patient`.
 
 **Filtros de paginación (`FilterUserDto`):**
 - `page` (default: 1)
@@ -211,6 +219,8 @@ enum Role { Admin = 'admin', Doctor = 'doctor', Patient = 'patient' }
 | `GET` | `/doctor` | Admin | Lista doctores paginados con filtros. |
 | `POST` | `/doctor` | Admin | Asocia un perfil Doctor a un User existente. |
 
+**Nota:** Normalmente el perfil `Doctor` se crea automáticamente al crear un usuario con rol `doctor`. Este endpoint solo es necesario para casos especiales (asignar `specialty` a un doctor existente).
+
 **Validaciones en create:**
 - El User debe existir.
 - El User no debe tener ya un perfil Doctor.
@@ -224,7 +234,10 @@ enum Role { Admin = 'admin', Doctor = 'doctor', Patient = 'patient' }
 | Método | Ruta | Acceso | Descripción |
 |--------|------|--------|-------------|
 | `GET` | `/patient` | Admin | Lista pacientes paginados con filtros. |
+| `GET` | `/patient/options` | Admin, Doctor | Lista todos los pacientes (id + nombre) para selectores. |
 | `POST` | `/patient` | Admin | Asocia un perfil Patient a un User existente. |
+
+**Nota:** Normalmente el perfil `Patient` se crea automáticamente al registrar un usuario o crear uno con rol `patient`. Este endpoint solo es necesario para casos especiales (asignar `birthDate` a un paciente existente).
 
 **Validaciones en create:**
 - El User debe existir.
@@ -311,8 +324,22 @@ Diseño **Dark Mode** estilo tecnológico/médico:
 
 | Ruta | Archivo | Descripción |
 |------|---------|-------------|
-| `/` | `app/page.tsx` | Página principal (placeholder con template de Next.js) |
-| `/login` | `app/login/page.tsx` | Formulario de login funcional |
+| `/` | `app/page.tsx` | Home inteligente: redirige al panel según el rol (`/admin`, `/doctor`, `/patient`) o a `/login`. |
+| `/login` | `app/login/page.tsx` | Formulario de login funcional. |
+| `/register` | `app/register/page.tsx` | Registro público (crea usuario y perfil `patient`). |
+| `/admin` | `app/admin/page.tsx` | Dashboard admin con métricas globales. |
+| `/admin/users` | `app/admin/users/page.tsx` | CRUD de usuarios (crear, editar, eliminar, buscar, filtrar por rol). |
+| `/admin/doctors` | `app/admin/doctors/page.tsx` | Listado de doctores con búsqueda. |
+| `/admin/patients` | `app/admin/patients/page.tsx` | Listado de pacientes con búsqueda. |
+| `/doctor` | `app/doctor/page.tsx` | Dashboard del doctor (totales + prescripciones recientes). |
+| `/doctor/prescripciones` | `app/doctor/prescripciones/page.tsx` | Listado de prescripciones emitidas con filtro por estado. |
+| `/doctor/prescripciones/nueva` | `app/doctor/prescripciones/nueva/page.tsx` | Crea prescripción: selector de pacientes, notas e items de medicamentos. |
+| `/doctor/prescripciones/[id]` | `app/doctor/prescripciones/[id]/page.tsx` | Detalle de una prescripción del doctor. |
+| `/patient` | `app/patient/page.tsx` | Dashboard del paciente (totales + recientes). |
+| `/patient/prescripciones` | `app/patient/prescripciones/page.tsx` | Listado de sus prescripciones con filtro por estado. |
+| `/patient/prescripciones/[id]` | `app/patient/prescripciones/[id]/page.tsx` | Detalle + botón "Marcar como consumida". |
+
+**Layouts por rol:** `app/admin/layout.tsx`, `app/doctor/layout.tsx` y `app/patient/layout.tsx` usan el componente `SidebarLayout`, que valida que el usuario tenga el rol correcto (redirige a `/login` si no) y renderiza una sidebar colapsable con navegación y logout.
 
 ### 6.4. Cliente HTTP (`services/api/api.ts`)
 
@@ -335,17 +362,39 @@ Características:
 **`auth.service.ts`:**
 ```typescript
 authService.login(credentials) → POST /auth/login → AuthResponse
+authService.register(data)    → POST /auth/register → AuthResponse
 ```
 
-### 6.6. Tipos
+**`users.service.ts`:** `findAll`, `create`, `update`, `remove` → `/users`
+**`doctor.service.ts`:** `findAll`, `create` → `/doctor`
+**`patient.service.ts`:** `findAll`, `create`, `findOptions` → `/patient`, `/patient/options`
+**`prescriptions.service.ts`:** `findAllByDoctor`, `findOneByDoctor`, `create`, `findAllByPatient`, `findOneByPatient`, `consumeByPatient` → `/prescripciones`
+**`admin.service.ts`:** `getMetrics` → `/admin/metrics`
+
+### 6.6. Componentes reutilizables (`src/components/`)
+
+| Componente | Descripción |
+|------------|-------------|
+| `SidebarLayout` | Layout con sidebar colapsable, guard por rol y logout. |
+| `Pagination` | Paginación estándar de tablas. |
+| `Spinner` | Indicador de carga con tamaño configurable. |
+| `Modal` | Modal genérico con overlay y cierre por clic fuera. |
+| `Badge` | `RoleBadge` y `StatusBadge` (pending/consumed). |
+| `StatCard`, `BarRow` | Tarjetas y barras para dashboards. |
+| `PrescriptionTable` | Tabla de prescripciones (código, paciente, doctor, fecha, estado). |
+| `PrescriptionDetail` | Vista de detalle con items, notas y acción opcional. |
+
+### 6.7. Tipos
 
 ```typescript
 interface User { id, email, name, role, createdAt }
 interface AuthResponse { status, accessToken, refreshToken, user, message }
 type LoginCredentials = { email, password }
+interface Prescription { id, code, status, notes, createdAt, consumedAt, patientId, authorId, patient?, author?, items? }
+interface PaginatedResponse<T> { data: T[], meta: { total, page, limit, totalPages } }
 ```
 
-### 6.7. Utilidades
+### 6.8. Utilidades
 
 **`ApiError`**: Clase de error personalizada con `status` y `data`.
 
@@ -374,16 +423,19 @@ type LoginCredentials = { email, password }
 | 4 | GET | `/auth/profile` | Sí | — |
 | 5 | GET | `/users` | Sí | Admin |
 | 6 | POST | `/users` | Sí | Admin |
-| 7 | GET | `/doctor` | Sí | Admin |
-| 8 | POST | `/doctor` | Sí | Admin |
-| 9 | GET | `/patient` | Sí | Admin |
-| 10 | POST | `/patient` | Sí | Admin |
-| 11 | POST | `/prescripciones` | Sí | Doctor, Admin |
-| 12 | GET | `/prescripciones/doctor` | Sí | Doctor, Admin |
-| 13 | GET | `/prescripciones/doctor/:id` | Sí | Doctor, Admin |
-| 14 | GET | `/prescripciones/patient` | Sí | Patient, Admin |
-| 15 | GET | `/prescripciones/patient/:id` | Sí | Patient, Admin |
-| 16 | GET | `/prescripciones/admin` | Sí | Admin |
-| 17 | PATCH | `/prescripciones/patient/consume/:id` | Sí | Patient, Admin |
-| 18 | GET | `/admin/metrics` | Sí | Admin |
+| 7 | PATCH | `/users/:id` | Sí | Admin |
+| 8 | DELETE | `/users/:id` | Sí | Admin |
+| 9 | GET | `/doctor` | Sí | Admin |
+| 10 | POST | `/doctor` | Sí | Admin |
+| 11 | GET | `/patient` | Sí | Admin |
+| 12 | GET | `/patient/options` | Sí | Admin, Doctor |
+| 13 | POST | `/patient` | Sí | Admin |
+| 14 | POST | `/prescripciones` | Sí | Doctor, Admin |
+| 15 | GET | `/prescripciones/doctor` | Sí | Doctor, Admin |
+| 16 | GET | `/prescripciones/doctor/:id` | Sí | Doctor, Admin |
+| 17 | GET | `/prescripciones/patient` | Sí | Patient, Admin |
+| 18 | GET | `/prescripciones/patient/:id` | Sí | Patient, Admin |
+| 19 | GET | `/prescripciones/admin` | Sí | Admin |
+| 20 | PATCH | `/prescripciones/patient/consume/:id` | Sí | Patient, Admin |
+| 21 | GET | `/admin/metrics` | Sí | Admin |
 

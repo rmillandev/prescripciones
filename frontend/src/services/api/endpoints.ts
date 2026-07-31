@@ -13,10 +13,17 @@ const DOCTOR_ENDPOINTS = {
 
 const PATIENT_ENDPOINTS = {
     patients: "/patient",
+    options: "/patient/options",
+} as const;
+
+const PRESCRIPTIONS_ENDPOINTS = {
+    prescriptions: "/prescripciones",
+    byDoctor: "/prescripciones/doctor",
+    byPatient: "/prescripciones/patient",
 } as const;
 
 const ADMIN_ENDPOINTS = {
     metrics: "/admin/metrics",
 } as const;
 
-export { AUTH_ENDPOINTS, USERS_ENDPOINTS, DOCTOR_ENDPOINTS, PATIENT_ENDPOINTS, ADMIN_ENDPOINTS };
+export { AUTH_ENDPOINTS, USERS_ENDPOINTS, DOCTOR_ENDPOINTS, PATIENT_ENDPOINTS, PRESCRIPTIONS_ENDPOINTS, ADMIN_ENDPOINTS };

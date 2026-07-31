@@ -85,12 +85,27 @@ export class UsersService {
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-     return this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         ...createUserDto,
         password: hashedPassword,
       },
     });
+
+    await this.ensureProfile(user.id, user.role);
+
+    return user;
+  }
+
+  private async ensureProfile(userId: string, role: string) {
+    if (role === 'doctor') {
+      const existing = await this.prisma.doctor.findUnique({ where: { userId } });
+      if (!existing) await this.prisma.doctor.create({ data: { userId } });
+    }
+    if (role === 'patient') {
+      const existing = await this.prisma.patient.findUnique({ where: { userId } });
+      if (!existing) await this.prisma.patient.create({ data: { userId } });
+    }
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
@@ -109,7 +124,7 @@ export class UsersService {
       data.password = await bcrypt.hash(data.password as string, 10);
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data,
       select: {
@@ -120,6 +135,11 @@ export class UsersService {
         createdAt: true,
       },
     });
+
+    const newRole = updateUserDto.role ?? user.role;
+    await this.ensureProfile(id, newRole);
+
+    return updated;
   }
 
   async remove(id: string) {
